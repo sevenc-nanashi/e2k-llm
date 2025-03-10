@@ -11,7 +11,7 @@ export class Gemini implements InferenceProvider {
     }
 
     this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
   }
 
   async infer(words: string[]) {

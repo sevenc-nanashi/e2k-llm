@@ -65,4 +65,13 @@ while (Object.keys(allResults).length < words.length) {
 }
 
 console.log("4: Writing results...");
-await Bun.file("./results.json").write(JSON.stringify(allResults, null, 2));
+await Bun.file("./data.jsonl").write(
+  Object.entries(allResults)
+    .map(([word, pronunciation]) =>
+      JSON.stringify({
+        word,
+        kata: pronunciation,
+      }),
+    )
+    .join("\n"),
+);
