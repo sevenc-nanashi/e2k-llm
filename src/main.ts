@@ -70,7 +70,14 @@ while (Object.keys(allResults).length < words.length) {
   await Promise.all(promises);
 }
 
-console.log("4: Writing results...");
+console.log("4: Cleaning up results...");
+for (const [word, pronunciation] of Object.entries(allResults)) {
+  if (!pronunciation.match(/^\p{Script=Katakana}+$/u)) {
+    console.error(`Invalid pronunciation for ${word}: ${pronunciation}`);
+    delete allResults[word];
+  }
+}
+console.log("5: Writing results...");
 await Bun.file("./data.jsonl").write(
   Object.entries(allResults)
     .map(([word, pronunciation]) =>
