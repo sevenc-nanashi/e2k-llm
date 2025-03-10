@@ -58,6 +58,13 @@ const inferBatch = (words: string[]) =>
       `Inferred ${Object.keys(results).length} pronunciations, ${shuffledWords.length - Object.keys(allResults).length} remaining`,
     );
     Object.assign(allResults, results);
+    if (Object.keys(allResults).length === words.length) {
+      return;
+    }
+
+    const remainingWords = words.filter((word) => !(word in results));
+    console.log(`Re-infering ${remainingWords.length} words`);
+    promises.push(inferBatch(remainingWords));
   });
 
 for (let i = 0; i < shuffledWords.length; i += batchSize) {
@@ -71,12 +78,24 @@ while (Object.keys(allResults).length < words.length) {
 }
 
 console.log("4: Cleaning up results...");
-for (const [word, pronunciation] of Object.entries(allResults)) {
+const mapping = {
+  "-": "ー",
+  " ": "",
+  "・": "",
+};
+for (let [word, pronunciation] of Object.entries(allResults)) {
+  pronunciation = Object.entries(mapping).reduce(
+    (acc, [key, value]) => acc.replaceAll(key, value),
+    pronunciation,
+  );
   if (!pronunciation.match(/^\p{Script=Katakana}+$/u)) {
     console.error(`Invalid pronunciation for ${word}: ${pronunciation}`);
     delete allResults[word];
   }
+
+  allResults[word] = pronunciation;
 }
+
 console.log("5: Writing results...");
 await Bun.file("./data.jsonl").write(
   Object.entries(allResults)

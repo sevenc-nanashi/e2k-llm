@@ -11,7 +11,7 @@ export class Gemini implements InferenceProvider {
     }
 
     this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+    this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
   }
 
   async infer(words: string[]) {
@@ -20,8 +20,8 @@ export class Gemini implements InferenceProvider {
       "Words:",
       ...words,
       "Format:",
-      "word=ハツオン",
-      "word=ハツオン",
+      "word=ワード",
+      "helmet=ヘルメット",
     ].join("\n");
 
     const response = await this.model
@@ -34,11 +34,6 @@ export class Gemini implements InferenceProvider {
         match[2],
       ]),
     );
-    for (const word of words) {
-      if (!(word in results)) {
-        throw new Error(`Failed to infer pronunciation for ${word}`);
-      }
-    }
 
     return results;
   }
