@@ -16,9 +16,9 @@ const maxBatchSize = await bisectMax(1, 1000, async (batchSize) => {
   const currentWords = shuffle(words).slice(0, batchSize);
   const results = await inferenceProvider.infer(currentWords).catch((err) => {
     console.error(String(err));
-    return {};
+    return [];
   });
-  return Object.keys(results).length === batchSize;
+  return results.length === currentWords.length;
 });
 
 const batchSize = maxBatchSize * 0.9;
@@ -35,7 +35,7 @@ const semaphore = new Semaphore(concurrency);
 console.log(`Using ${concurrency} concurrency`);
 
 const promises: Promise<void>[] = [];
-const allResults: Record<string, string> = {};
+const allResults: inference.DictionaryEntry[] = [];
 
 const inferBatch = (words: string[]) =>
   semaphore.lock(async () => {
@@ -48,16 +48,16 @@ const inferBatch = (words: string[]) =>
       console.log(
         `Splitting batch of ${words.length} into two batches of ${halfWords.length} and ${halfWords2.length}`,
       );
-      return {};
+      return [];
     });
-    if (Object.keys(results).length === 0) {
+    if (results.length === 0) {
       return;
     }
 
     console.log(
-      `Inferred ${Object.keys(results).length} pronunciations, ${shuffledWords.length - Object.keys(allResults).length} remaining`,
+      `Inferred ${results.length} pronunciations, ${allResults.length}/${words.length}`,
     );
-    Object.assign(allResults, results);
+    allResults.push(...results);
   });
 
 for (let i = 0; i < shuffledWords.length; i += batchSize) {
@@ -66,25 +66,23 @@ for (let i = 0; i < shuffledWords.length; i += batchSize) {
   promises.push(inferBatch(currentWords));
 }
 
-while (Object.keys(allResults).length < words.length) {
+while (allResults.length < words.length) {
   await Promise.all(promises);
 }
 
 console.log("4: Cleaning up results...");
-for (const [word, pronunciation] of Object.entries(allResults)) {
-  if (!pronunciation.match(/^\p{Script=Katakana}+$/u)) {
-    console.error(`Invalid pronunciation for ${word}: ${pronunciation}`);
-    delete allResults[word];
-  }
+for (const entry of allResults) {
+  entry.kata = entry.kata.flatMap((kata) => {
+    if (kata.match(/^\p{Script=Katakana}+$/u)) {
+      return [kata];
+    }
+    console.error(`Invalid pronunciation for ${entry.word}: ${kata}`);
+    return [];
+  });
 }
+const filteredResults = allResults.filter((entry) => entry.kata.length > 0);
+
 console.log("5: Writing results...");
 await Bun.file("./data.jsonl").write(
-  Object.entries(allResults)
-    .map(([word, pronunciation]) =>
-      JSON.stringify({
-        word,
-        kata: [pronunciation],
-      }),
-    )
-    .join("\n"),
+  filteredResults.map((entry) => JSON.stringify(entry)).join("\n"),
 );

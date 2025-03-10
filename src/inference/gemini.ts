@@ -1,5 +1,9 @@
-import { GenerativeModel, GoogleGenerativeAI } from "@google/generative-ai";
-import type { InferenceProvider } from ".";
+import {
+  GenerativeModel,
+  GoogleGenerativeAI,
+  SchemaType,
+} from "@google/generative-ai";
+import type { DictionaryEntry, InferenceProvider } from ".";
 
 export class Gemini implements InferenceProvider {
   genAI: GoogleGenerativeAI;
@@ -11,33 +15,49 @@ export class Gemini implements InferenceProvider {
     }
 
     this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+    this.model = this.genAI.getGenerativeModel({
+      model: "gemini-2.0-flash-lite",
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: SchemaType.ARRAY,
+          items: {
+            type: SchemaType.OBJECT,
+            properties: {
+              word: {
+                type: SchemaType.STRING,
+              },
+              kata: {
+                type: SchemaType.ARRAY,
+                items: {
+                  type: SchemaType.STRING,
+                },
+              },
+            },
+            required: ["word", "kata"],
+          },
+        },
+      },
+    });
   }
 
   async infer(words: string[]) {
     const prompt = [
-      "Estimate Japanese-style pronunciation of these words, and output in the specified format. Don't include any other texts.",
+      "Estimate Japanese-style pronunciation of these words.",
       "Words:",
       ...words,
-      "Format:",
-      "word=ハツオン",
-      "word=ハツオン",
     ].join("\n");
 
-    const response = await this.model
-      .generateContent(prompt)
-      .then((res) => res.response.text());
-    const resultPattern = /^([a-z]+)=(.+)$/gm;
-    const results = Object.fromEntries(
-      [...response.matchAll(resultPattern)].map((match) => [
-        match[1],
-        match[2],
-      ]),
-    );
-    for (const word of words) {
-      if (!(word in results)) {
-        throw new Error(`Failed to infer pronunciation for ${word}`);
-      }
+    const results = await this.model.generateContent(prompt).then((res) => {
+      const text = res.response.text();
+      console.log(text);
+      return JSON.parse(text) as DictionaryEntry[];
+    });
+    const returnedWords = new Set(results.map((r) => r.word));
+    if (returnedWords.size !== words.length) {
+      throw new Error(
+        `Length mismatch: Requested ${words.length} words, got ${returnedWords.size}`,
+      );
     }
 
     return results;
