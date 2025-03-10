@@ -83,7 +83,7 @@ await Bun.file("./data.jsonl").write(
     .map(([word, pronunciation]) =>
       JSON.stringify({
         word,
-        kata: pronunciation,
+        kata: [pronunciation],
       }),
     )
     .join("\n"),
