@@ -60,7 +60,9 @@ for (let i = 0; i < shuffledWords.length; i += batchSize) {
   promises.push(inferBatch(currentWords));
 }
 
-await Promise.all(promises);
+while (Object.keys(allResults).length < words.length) {
+  await Promise.all(promises);
+}
 
 console.log("4: Writing results...");
 await Bun.file("./results.json").write(JSON.stringify(allResults, null, 2));
