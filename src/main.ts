@@ -23,6 +23,9 @@ const maxBatchSize = await bisectMax(1, 1000, async (batchSize) => {
 
 const batchSize = maxBatchSize * 0.9;
 console.log(`Maximum batch size is ${maxBatchSize}, using ${batchSize}`);
+if (batchSize < 10) {
+  throw new Error("Batch size too small, aborting");
+}
 
 console.log("3: Inferring pronunciations...");
 const shuffledWords = shuffle(words);
@@ -47,6 +50,9 @@ const inferBatch = (words: string[]) =>
       );
       return {};
     });
+    if (Object.keys(results).length === 0) {
+      return;
+    }
 
     console.log(
       `Inferred ${Object.keys(results).length} pronunciations, ${shuffledWords.length - Object.keys(allResults).length} remaining`,
