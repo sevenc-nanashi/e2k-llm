@@ -89,6 +89,15 @@ const mapping = {
   "-": "ー",
   " ": "",
   "・": "",
+  ｬ: "ャ",
+  ｭ: "ュ",
+  ｮ: "ョ",
+  ｧ: "ァ",
+  ｨ: "ィ",
+  ｩ: "ゥ",
+  ｪ: "ェ",
+  ｫ: "ォ",
+  ｯ: "ッ",
 };
 for (let [word, pronunciation] of Object.entries(allResults)) {
   pronunciation = Object.entries(mapping).reduce(
