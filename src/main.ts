@@ -2,6 +2,7 @@ import * as source from "./source/index.ts";
 import * as inference from "./inference/index.ts";
 import { Semaphore } from "@core/asyncutil/semaphore";
 import { bisectMax, shuffle } from "./utils.ts";
+import { Mutex } from "@core/asyncutil";
 
 const sourceProvider = new source.CmuDict();
 const inferenceProvider = new inference.Gemini();
@@ -34,12 +35,34 @@ const concurrency = 10;
 const semaphore = new Semaphore(concurrency);
 console.log(`Using ${concurrency} concurrency`);
 
-const promises: Promise<void>[] = [];
+const promises: Promise<unknown>[] = [];
 const allResults: Record<string, string> = {};
 
 const inferBatch = (words: string[]) =>
   semaphore.lock(async () => {
-    const results = await inferenceProvider.infer(words).catch((err) => {
+    try {
+      const results = await inferenceProvider.infer(words);
+
+      console.log(
+        `Inferred ${Object.keys(results).length} pronunciations, ${shuffledWords.length - Object.keys(allResults).length} remaining`,
+      );
+      Object.assign(allResults, results);
+
+      const remainingWords = words.filter((word) => !(word in results));
+      if (remainingWords.length === 0) {
+        return;
+      }
+      console.log(`Re-inferring ${remainingWords.length} words...`);
+      promises.push(inferBatch(remainingWords));
+    } catch (err) {
+      if (String(err).includes("429")) {
+        console.error("Rate limited, waiting 1 minute...");
+        await new Promise((resolve) => setTimeout(resolve, 60000));
+
+        console.error("Retrying inference...");
+        promises.push(inferBatch(words));
+        return;
+      }
       const halfWords = words.slice(0, words.length / 2);
       const halfWords2 = words.slice(words.length / 2);
       console.error(String(err));
@@ -48,23 +71,7 @@ const inferBatch = (words: string[]) =>
       console.log(
         `Splitting batch of ${words.length} into two batches of ${halfWords.length} and ${halfWords2.length}`,
       );
-      return {};
-    });
-    if (Object.keys(results).length === 0) {
-      return;
     }
-
-    console.log(
-      `Inferred ${Object.keys(results).length} pronunciations, ${shuffledWords.length - Object.keys(allResults).length} remaining`,
-    );
-    Object.assign(allResults, results);
-    if (Object.keys(allResults).length === words.length) {
-      return;
-    }
-
-    const remainingWords = words.filter((word) => !(word in results));
-    console.log(`Re-infering ${remainingWords.length} words`);
-    promises.push(inferBatch(remainingWords));
   });
 
 for (let i = 0; i < shuffledWords.length; i += batchSize) {
@@ -88,12 +95,12 @@ for (let [word, pronunciation] of Object.entries(allResults)) {
     (acc, [key, value]) => acc.replaceAll(key, value),
     pronunciation,
   );
-  if (!pronunciation.match(/^\p{Script=Katakana}+$/u)) {
+  if (!pronunciation.match(/^[\p{Script=Katakana}ー]+$/u)) {
     console.error(`Invalid pronunciation for ${word}: ${pronunciation}`);
     delete allResults[word];
+  } else {
+    allResults[word] = pronunciation;
   }
-
-  allResults[word] = pronunciation;
 }
 
 console.log("5: Writing results...");
